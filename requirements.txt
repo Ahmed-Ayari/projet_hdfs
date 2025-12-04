@@ -1,0 +1,12 @@
+# Requirements pour le projet HDFS
+
+# Aucune dépendance externe requise
+# Le projet utilise uniquement la bibliothèque standard Python
+
+# Pour référence, version Python recommandée:
+# Python >= 3.7
+
+# Si vous souhaitez ajouter des outils de développement (optionnel):
+# pytest>=7.0.0          # Pour les tests unitaires
+# black>=22.0.0          # Pour le formatage du code
+# pylint>=2.12.0         # Pour l'analyse statique du code
