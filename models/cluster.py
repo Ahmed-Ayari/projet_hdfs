@@ -1,5 +1,14 @@
 """
-Classe représentant un cluster de fichiers.
+Modèle représentant un cluster de fichiers fusionnés.
+
+Selon l'article (Section 4 - Algorithm 1):
+- Output: "Cluster hierarchies C = {C1, C2, ..., Cm}"
+- "Each cluster consists of set of small files"
+- "The size of cluster should less than or equal to default block size" (128 MB)
+
+Le clustering permet de réduire la consommation mémoire du NameNode:
+- Avant: n fichiers = n * 150 bytes de métadonnées
+- Après: m clusters = m * 150 bytes (où m << n)
 """
 
 from typing import List
@@ -8,14 +17,20 @@ from .small_file import SmallFile
 
 class Cluster:
     """
-    Représente un cluster contenant un ou plusieurs fichiers.
+    Représente un cluster Ci dans l'ensemble C = {C1, C2, ..., Cm}.
     
-    Un cluster est créé lors du processus de fusion et contient
-    l'ensemble des fichiers regroupés ensemble.
+    Selon l'article (Section 4.1):
+    - "The small files are merged into a large file"
+    - "NameNode only maintains the metadata of merged files"
+    - Contrainte: |Ci| ≤ 128 MB (taille de bloc HDFS)
+    
+    Le dendrogramme (Section 3):
+    "The small files are nested in larger cluster of files. These larger 
+    clusters are joined until its size is less than the default block size."
     
     Attributes:
-        cluster_id (int): Identifiant unique du cluster
-        files (List[SmallFile]): Liste des fichiers dans le cluster
+        cluster_id (int): Identifiant unique du cluster (C1, C2, ...)
+        files (List[SmallFile]): Ensemble des fichiers {F1, F2, ...} dans le cluster
     """
     
     # Compteur statique pour générer des IDs uniques
@@ -53,13 +68,15 @@ class Cluster:
     
     def merge_with(self, other: 'Cluster') -> 'Cluster':
         """
-        Fusionne ce cluster avec un autre cluster.
+        [ALGORITHM 1 - Ligne 11] Fusionne ce cluster avec un autre.
+        
+        Selon l'article: "C = ({C} ∪ {C'})" - Union des deux clusters.
         
         Args:
-            other (Cluster): L'autre cluster à fusionner
+            other (Cluster): L'autre cluster C' à fusionner
             
         Returns:
-            Cluster: Un nouveau cluster contenant tous les fichiers
+            Cluster: Nouveau cluster C'' = C ∪ C'
         """
         new_cluster = Cluster()
         new_cluster.files = self.files + other.files
@@ -67,14 +84,16 @@ class Cluster:
     
     def can_merge_with(self, other: 'Cluster', max_size_mb: float = 128.0) -> bool:
         """
-        Vérifie si ce cluster peut fusionner avec un autre sans dépasser la limite.
+        [ALGORITHM 1 - Ligne 10] Vérifie la contrainte de fusion.
+        
+        Selon l'article: "If (sizeOfCluster |C| + sizeOfCluster |C'|) <= 128MB Then"
         
         Args:
-            other (Cluster): L'autre cluster
-            max_size_mb (float): Taille maximale autorisée en MB (par défaut 128 MB)
+            other (Cluster): L'autre cluster C'
+            max_size_mb (float): Taille de bloc HDFS (128 MB par défaut)
             
         Returns:
-            bool: True si la fusion est possible, False sinon
+            bool: True si |C| + |C'| ≤ 128 MB, False sinon
         """
         total_size = self.get_total_size() + other.get_total_size()
         return total_size <= max_size_mb

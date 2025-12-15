@@ -2,7 +2,7 @@
 
 ## 📋 Description du Projet
 
-Ce projet implémente une solution orientée objets pour résoudre le **problème des petits fichiers** dans les systèmes distribués de type HDFS (Hadoop Distributed File System).
+Ce projet implémente une solution orientée objets pour résoudre le **problème des petits fichiers** dans les systèmes distribués de type HDFS (Hadoop Distributed File System), **basé sur l'article de recherche** *"Merging Small Files Based on Agglomerative Hierarchical Clustering on HDFS for Cloud Storage"*.
 
 ### Le Problème des Petits Fichiers
 
@@ -11,12 +11,20 @@ Dans HDFS, chaque fichier génère des métadonnées stockées en mémoire par l
 - **Performances dégradées** lors des opérations de lecture/écriture
 - **Coût élevé** de gestion des métadonnées
 
-### La Solution
+### La Solution (Selon Article de Recherche)
 
 Ce programme regroupe les petits fichiers en **clusters** en utilisant un algorithme de **clustering hiérarchique agglomératif** avec la méthode **single-linkage**, permettant de:
 - Réduire le nombre de fichiers de métadonnées
 - Minimiser la surcharge du NameNode
 - Optimiser l'utilisation du stockage
+
+**📌 Configuration HDFS (selon article):**
+- **Taille de bloc HDFS**: 128 MB
+- **Seuil de petits fichiers**: **0.75 (75%)** de la taille de bloc
+- **Taille maximale d'un petit fichier**: **96 MB** (75% × 128 MB)
+- **Validation des accès**: Vérification de la taille lors de l'accès aux fichiers
+
+> *"The default threshold for this system is set to (0.75) 75% of default block size (128 MB). If the user accesses the files, the system will check the size of file."* - Article de recherche
 
 ---
 
@@ -24,14 +32,17 @@ Ce programme regroupe les petits fichiers en **clusters** en utilisant un algori
 
 ### Algorithme: Clustering Hiérarchique Agglomératif
 
-**Principe:**
-1. **Initialisation**: Chaque fichier commence comme un cluster individuel
+**Principe (selon article):**
+0. **Filtrage**: Identifier les petits fichiers (taille < 96 MB = 75% × 128 MB)
+1. **Initialisation**: Chaque petit fichier commence comme un cluster individuel
 2. **Itération**: À chaque étape:
    - Trouver les deux clusters les plus proches
    - Vérifier la contrainte de taille: `taille_totale ≤ 128 MB`
    - Si OK → fusionner les clusters
    - Sinon → marquer comme non fusionnable
 3. **Terminaison**: Quand aucune fusion n'est plus possible
+
+**Important**: Les fichiers ≥ 96 MB ne sont **pas** traités par le système de fusion et sont gérés directement par HDFS.
 
 ### Distance Entre Fichiers
 
@@ -49,6 +60,18 @@ La distance entre deux clusters A et B est le **minimum** des distances entre le
 distance(A, B) = min(distance(fichier_i, fichier_j))
                  pour tout fichier_i ∈ A, fichier_j ∈ B
 ```
+
+---
+
+## ⚙️ Paramètres du Système (Article de Recherche)
+
+| Paramètre | Valeur | Description |
+|-----------|--------|-------------|
+| **Taille de bloc HDFS** | 128 MB | Taille standard d'un bloc HDFS |
+| **Seuil (threshold)** | 0.75 (75%) | Pourcentage de la taille de bloc |
+| **Taille max petit fichier** | 96 MB | 75% × 128 MB |
+| **Taille max cluster** | 128 MB | Contrainte de fusion |
+| **Méthode de linkage** | Single-Linkage | Distance minimale |
 
 ---
 

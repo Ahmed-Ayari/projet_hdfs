@@ -12,11 +12,13 @@ import os
 # Ajouter le répertoire parent au path pour les imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from models.small_file import SmallFile
+from models.small_file import SmallFile, HDFS_BLOCK_SIZE_MB, SMALL_FILE_THRESHOLD, SMALL_FILE_MAX_SIZE_MB
 from models.cluster import Cluster
 from core.distance_matrix import DistanceMatrix
 from core.clustering import AgglomerativeClustering
 from core.merger import FileMerger
+from core.namenode_memory import NameNodeMemory
+from core.file_index import FileIndex
 from data_io.file_generator import FileGenerator
 from data_io.metadata_writer import MetadataWriter
 
@@ -27,6 +29,13 @@ def print_header():
     print(" "*20 + "SYSTÈME DE FUSION DE FICHIERS HDFS")
     print(" "*15 + "Clustering Hiérarchique Agglomératif")
     print(" "*20 + "Méthode: Single-Linkage")
+    print(" "*15 + "Basé sur l'article de recherche HDFS")
+    print("="*80)
+    print(f"\n📋 Configuration (selon article de recherche):")
+    print(f"  • Taille de bloc HDFS: {HDFS_BLOCK_SIZE_MB} MB")
+    print(f"  • Seuil petits fichiers: {SMALL_FILE_THRESHOLD * 100:.0f}% = {SMALL_FILE_MAX_SIZE_MB} MB")
+    print(f"  • Fichiers < {SMALL_FILE_MAX_SIZE_MB} MB → éligibles pour fusion")
+    print(f"  • Fichiers ≥ {SMALL_FILE_MAX_SIZE_MB} MB → traités directement en HDFS")
     print("="*80 + "\n")
 
 
@@ -63,23 +72,43 @@ def example_1_realistic_scenario():
     
     # 3. Afficher les statistiques
     stats = clustering.get_statistics()
-    print(f"\nSTATISTIQUES DU CLUSTERING:")
-    print(f"  Clusters créés: {stats['num_clusters']}")
-    print(f"  Fichiers traités: {stats['total_files']}")
-    print(f"  Taille moyenne par cluster: {stats['avg_cluster_size_mb']:.2f} MB")
-    print(f"  Taille min: {stats['min_cluster_size_mb']:.2f} MB")
-    print(f"  Taille max: {stats['max_cluster_size_mb']:.2f} MB")
-    print(f"  Fichiers moyens par cluster: {stats['avg_files_per_cluster']:.2f}")
-    print(f"  Itérations: {stats['iterations']}")
+    print(f"\n📊 STATISTIQUES DU CLUSTERING (selon article):")
+    print(f"  Fichiers analysés:")
+    print(f"    - Total reçu: {stats.get('total_files_received', 0)}")
+    print(f"    - Petits fichiers (< {stats.get('threshold_mb', 96)} MB): {stats.get('small_files_processed', 0)}")
+    print(f"    - Exclus (≥ {stats.get('threshold_mb', 96)} MB): {stats.get('files_excluded', 0)}")
+    print(f"\n  Résultats du clustering:")
+    print(f"    - Clusters créés: {stats['num_clusters']}")
+    print(f"    - Taille moyenne: {stats.get('avg_cluster_size_mb', 0):.2f} MB")
+    print(f"    - Taille min: {stats.get('min_cluster_size_mb', 0):.2f} MB")
+    print(f"    - Taille max: {stats.get('max_cluster_size_mb', 0):.2f} MB")
+    print(f"    - Fichiers/cluster: {stats.get('avg_files_per_cluster', 0):.2f}")
+    print(f"    - Itérations: {stats['iterations']}")
     
-    # 4. Fusionner les fichiers
+    # 4. Afficher le dendrogramme (selon article)
+    clustering.dendrogram.print_tree()
+    clustering.dendrogram.print_merge_history()
+    
+    # 5. Analyse mémoire NameNode (selon article)
+    namenode = NameNodeMemory()
+    print(namenode.get_detailed_report(files, clusters))
+    
+    # 6. Fusionner les fichiers
     merger = FileMerger(output_dir=output_dir)
     merged_files = merger.merge_all_clusters(clusters)
     
-    # 5. Écrire les métadonnées
+    # 7. Créer l'index de fichiers (pour récupération)
+    file_index = FileIndex()
+    file_index.build_index(clusters)
+    file_index.print_index()
+    
+    # 8. Écrire les métadonnées
     metadata_writer = MetadataWriter(output_dir=output_dir)
     metadata_writer.write_all_metadata(clusters, summary_filename="example1_clusters.json")
     metadata_writer.write_detailed_report(clusters, len(files), filename="example1_report.txt")
+    
+    # 9. Afficher les étapes de l'algorithme
+    clustering.print_algorithm_steps()
     
     print(f"\n✓ Exemple 1 terminé - Résultats dans le dossier '{output_dir}'")
 
@@ -118,17 +147,46 @@ def example_2_custom_files():
     for i, f in enumerate(files, 1):
         print(f"  {i}. {f}")
     
-    # Clustering
+    # 1. Clustering avec algorithme agglomératif hiérarchique
+    print("\n" + "="*80)
+    print("PHASE DE CLUSTERING")
+    print("="*80)
     clustering = AgglomerativeClustering(max_cluster_size_mb=128.0)
     clusters = clustering.fit(files)
     
-    # Fusion et métadonnées
+    # 2. Afficher le dendrogramme
+    print("\n" + "="*80)
+    print("DENDROGRAMME (Structure Hiérarchique)")
+    print("="*80)
+    clustering.dendrogram.print_tree()
+    clustering.dendrogram.print_merge_history()
+    
+    # 3. Analyse mémoire NameNode
+    print("\n" + "="*80)
+    print("ANALYSE MÉMOIRE NAMENODE")
+    print("="*80)
+    namenode = NameNodeMemory()
+    print(namenode.get_detailed_report(files, clusters))
+    
+    # 4. Fusion des fichiers
+    print("\n" + "="*80)
+    print("FUSION DES FICHIERS")
+    print("="*80)
     merger = FileMerger(output_dir="output")
     merger.merge_all_clusters(clusters)
     
+    # 5. Créer l'index de fichiers
+    file_index = FileIndex()
+    file_index.build_index(clusters)
+    file_index.print_index()
+    
+    # 6. Écrire les métadonnées
     metadata_writer = MetadataWriter(output_dir="output")
     metadata_writer.write_all_metadata(clusters, summary_filename="example2_clusters.json")
     metadata_writer.write_detailed_report(clusters, len(files), filename="example2_report.txt")
+    
+    # 7. Afficher les étapes de l'algorithme
+    clustering.print_algorithm_steps()
     
     print(f"\n✓ Exemple 2 terminé - Résultats dans le dossier 'output'")
 
@@ -152,11 +210,14 @@ def example_3_small_files():
     print(f"Taille totale: {sum(f.size_mb for f in files):.2f} MB")
     print(f"Taille moyenne: {sum(f.size_mb for f in files) / len(files):.2f} MB")
     
-    # Clustering
+    # 1. Clustering avec algorithme agglomératif hiérarchique
+    print("\n" + "="*80)
+    print("PHASE DE CLUSTERING")
+    print("="*80)
     clustering = AgglomerativeClustering(max_cluster_size_mb=128.0)
     clusters = clustering.fit(files)
     
-    # Calculer le taux de réduction
+    # 2. Calculer le taux de réduction
     reduction_rate = (1 - len(clusters) / len(files)) * 100
     print(f"\n📊 RÉSULTAT:")
     print(f"  Fichiers originaux: {len(files)}")
@@ -164,13 +225,39 @@ def example_3_small_files():
     print(f"  Réduction: {reduction_rate:.2f}%")
     print(f"  → Économie de {len(files) - len(clusters)} entrées de métadonnées!")
     
-    # Fusion et métadonnées
+    # 3. Afficher le dendrogramme
+    print("\n" + "="*80)
+    print("DENDROGRAMME (Structure Hiérarchique)")
+    print("="*80)
+    clustering.dendrogram.print_tree()
+    clustering.dendrogram.print_merge_history()
+    
+    # 4. Analyse mémoire NameNode
+    print("\n" + "="*80)
+    print("ANALYSE MÉMOIRE NAMENODE")
+    print("="*80)
+    namenode = NameNodeMemory()
+    print(namenode.get_detailed_report(files, clusters))
+    
+    # 5. Fusion des fichiers
+    print("\n" + "="*80)
+    print("FUSION DES FICHIERS")
+    print("="*80)
     merger = FileMerger(output_dir="output")
     merger.merge_all_clusters(clusters)
     
+    # 6. Créer l'index de fichiers
+    file_index = FileIndex()
+    file_index.build_index(clusters)
+    file_index.print_index()
+    
+    # 7. Écrire les métadonnées
     metadata_writer = MetadataWriter(output_dir="output")
     metadata_writer.write_all_metadata(clusters, summary_filename="example3_clusters.json")
     metadata_writer.write_detailed_report(clusters, len(files), filename="example3_report.txt")
+    
+    # 8. Afficher les étapes de l'algorithme
+    clustering.print_algorithm_steps()
     
     print(f"\n✓ Exemple 3 terminé - Résultats dans le dossier 'output'")
 

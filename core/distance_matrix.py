@@ -1,5 +1,10 @@
 """
-Classe pour calculer et gérer la matrice de distance euclidienne entre fichiers.
+Matrice de distance euclidienne pour le clustering hiérarchique.
+
+Selon l'article (Section 3 - Background Theory):
+- "The Euclidean distance measure is used to cluster the small files"
+- "Only the half of the matrix is needed because the distance between objects is symmetric"
+- Formule: d(i,j) = |x_ip - x_jp| où x est la taille du fichier
 """
 
 from typing import List
@@ -8,14 +13,18 @@ from models.cluster import Cluster
 
 class DistanceMatrix:
     """
-    Calcule et maintient la matrice de distance entre clusters.
+    Calcule et maintient la matrice de distance De(Fi, Fj) entre clusters.
     
-    La distance entre deux clusters est calculée uniquement sur la base
-    de la taille des fichiers qu'ils contiennent.
+    Selon l'article (Section 4 - Algorithm 1, Lignes 1-6):
+    - [Lignes 1-5] "Calculate Euclidean distance matrix between small files De(Fi, Fj)"
+    - [Ligne 6] "Create distance matrix (C, S, De)"
+    
+    La distance est basée sur la différence de taille entre clusters:
+    De(Ci, Cj) = |size(Ci) - size(Cj)|
     
     Attributes:
-        clusters (List[Cluster]): Liste des clusters actifs
-        matrix (List[List[float]]): Matrice de distance symétrique
+        clusters (List[Cluster]): Liste des clusters actifs C = {C1, C2, ..., Cm}
+        matrix (List[List[float]]): Matrice de distance symétrique De
     """
     
     def __init__(self, clusters: List[Cluster]):
@@ -31,32 +40,42 @@ class DistanceMatrix:
     
     def _compute_matrix(self) -> None:
         """
-        Calcule la matrice de distance complète.
+        [ALGORITHM 1 - Lignes 1-5] Calcule la matrice de distance euclidienne.
         
-        Pour chaque paire de clusters, calcule la distance euclidienne
-        basée sur la taille totale de chaque cluster.
+        Selon l'article (Section 3):
+        "The Euclidean distance measure is: d(i,j) = sqrt(sum((x_ip - x_jp)^2))"
+        
+        Pour le cas unidimensionnel (taille uniquement):
+        De(Ci, Cj) = |size(Ci) - size(Cj)|
+        
+        Exemple de l'article (Section 4.2):
+        - d(1,2) = |40 - 10| = 30
+        - d(1,3) = |40 - 50| = 10
         """
         n = len(self.clusters)
         self.matrix = [[0.0 for _ in range(n)] for _ in range(n)]
         
         for i in range(n):
             for j in range(i + 1, n):
-                # Distance euclidienne basée sur la taille
+                # Distance euclidienne: De(Ci, Cj) = |size(Ci) - size(Cj)|
                 size_i = self.clusters[i].get_total_size()
                 size_j = self.clusters[j].get_total_size()
                 distance = abs(size_i - size_j)
                 
-                # Matrice symétrique
+                # Matrice symétrique: d(i,j) = d(j,i)
                 self.matrix[i][j] = distance
                 self.matrix[j][i] = distance
     
     def find_closest_pair(self) -> tuple:
         """
-        Trouve la paire de clusters la plus proche.
+        [ALGORITHM 1 - Ligne 9] Trouve la paire de clusters la plus proche.
+        
+        Selon l'article: "{C, C'} = min De(Fi, Fj) {Ci, Cj} ∈ C: Ci ≠ Cj"
+        Sélection par single-linkage: "minimum distance between elements".
         
         Returns:
             tuple: (index_i, index_j, distance) où i < j
-                   Retourne (None, None, float('inf')) si moins de 2 clusters
+                   Retourne (None, None, inf) si moins de 2 clusters
         """
         if len(self.clusters) < 2:
             return None, None, float('inf')
@@ -94,14 +113,19 @@ class DistanceMatrix:
     
     def merge_clusters(self, i: int, j: int) -> None:
         """
-        Fusionne deux clusters et met à jour la matrice.
+        [ALGORITHM 1 - Lignes 11 et 13] Fusionne deux clusters et met à jour la matrice.
         
-        Utilise la méthode single-linkage: la distance entre le nouveau
-        cluster fusionné et les autres est le minimum des distances.
+        Selon l'article:
+        - [Ligne 11] "C = ({C} ∪ {C'})" - Fusion des clusters
+        - [Ligne 13] "Update distance matrix (C, S, De)" - Mise à jour
+        
+        Méthode Single-Linkage (Section 3):
+        "The single-linkage clustering is the minimum distance between elements"
+        La nouvelle distance = min(De(Ci, Ck), De(Cj, Ck)) pour tout k.
         
         Args:
-            i (int): Index du premier cluster (doit être < j)
-            j (int): Index du second cluster
+            i (int): Index du premier cluster Ci
+            j (int): Index du second cluster Cj
         """
         # S'assurer que i < j pour simplifier la suppression
         if i > j:
@@ -196,3 +220,39 @@ class DistanceMatrix:
             str: Description de la matrice
         """
         return f"DistanceMatrix(clusters={len(self.clusters)})"
+    
+    def print_matrix(self) -> None:
+        """
+        Affiche la matrice de distance selon le format de l'article.
+        
+        Selon l'article: "Only the half of the matrix is needed because 
+        the distance between objects is symmetric"
+        """
+        n = len(self.clusters)
+        
+        if n == 0:
+            print("Matrice vide")
+            return
+        
+        # En-tête
+        print("\n" + " " * 12, end="")
+        for j in range(n):
+            print(f"C{self.clusters[j].cluster_id:5d}", end="")
+        print()
+        
+        # Lignes de la matrice (demi-matrice supérieure)
+        for i in range(n):
+            print(f"Cluster {self.clusters[i].cluster_id:3d} |", end="")
+            for j in range(n):
+                if i == j:
+                    print("    - ", end="")
+                elif j < i:
+                    print("      ", end="")  # Partie inférieure (symétrique)
+                else:
+                    print(f"{self.matrix[i][j]:5.1f} ", end="")
+            
+            # Afficher la taille du cluster
+            size = self.clusters[i].get_total_size()
+            print(f"| ({size:.1f} MB)")
+        
+        print()
