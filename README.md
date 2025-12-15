@@ -342,31 +342,7 @@ Résultats:
 
 *Valeurs tirées de l'article - Figure 3: NameNode Memory Consumption*
 
----
-
-## 🎯 Conformité avec l'Article
-
-### ✅ Éléments Implémentés
-
-| Requirement | Implémentation | Fichier |
-|-------------|----------------|---------|
-| Algorithm 1 (lignes 1-15) | `AgglomerativeClustering.fit()` | clustering.py |
-| Distance Euclidienne | `DistanceMatrix._compute_matrix()` | distance_matrix.py |
-| Single-Linkage | `DistanceMatrix.merge_clusters()` | distance_matrix.py |
-| Seuil 75% = 96 MB | `SMALL_FILE_THRESHOLD = 0.75` | small_file.py |
-| Bloc 128 MB | `HDFS_BLOCK_SIZE_MB = 128.0` | small_file.py |
-| 150 bytes/métadonnée | `METADATA_BYTES_PER_FILE = 150` | namenode_memory.py |
-| Dendrogramme | `Dendrogram` class | dendrogram.py |
-| Analyse mémoire | `NameNodeMemory` class | namenode_memory.py |
-
-### ✅ Contraintes Techniques
-
-- ✅ **Programmation orientée objets** stricte
-- ✅ **Aucune bibliothèque externe** de clustering
-- ✅ **Algorithme manuel** complètement implémenté
-- ✅ **Commentaires** avec références aux sections/lignes de l'article
-
----
+-----
 
 ## 🧪 Tests
 
